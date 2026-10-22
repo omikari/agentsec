@@ -1,0 +1,30 @@
+name: AgentSec CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test-and-containerize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax check
+        run: python -m compileall -q agentsec tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Experiment smoke test and trace export
+        run: python -m agentsec matrix --out artifacts/matrix.json
+      - name: Build isolated demo container
+        run: docker build -t agentsec:milestone0 .
+      - name: Run demo container without network access
+        run: docker run --rm --network none --read-only agentsec:milestone0
+      - name: Upload mock run trace
+        uses: actions/upload-artifact@v4
+        with:
+          name: mock-matrix-traces
+          path: artifacts/matrix.json

@@ -1,0 +1,7 @@
+.git
+.github
+artifacts
+__pycache__
+*.py[cod]
+.venv
+.env
