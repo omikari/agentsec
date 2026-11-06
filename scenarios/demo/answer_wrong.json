@@ -1,0 +1,10 @@
+{
+  "account": "jrivera@northwind-demo.example",
+  "finding": "benign_activity",
+  "evidence_ids": [
+    "E1"
+  ],
+  "recommended_action": [
+    "monitor"
+  ]
+}
