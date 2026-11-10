@@ -158,12 +158,68 @@ class AgentLoopTests(unittest.TestCase):
         other = run_agent(SCENARIO, "off", FakeAdapter([final(json.dumps(GOOD_ANSWER))]), trial=4)
         self.assertNotEqual(result["run_id"], other["run_id"])
 
-    def test_tool_result_annotation_delivery(self):
+    def test_note_added_to_successful_read_only(self):
         adapter = FakeAdapter([tool_call("read_login_evidence"), final(json.dumps(GOOD_ANSWER))])
-        run_agent(SCENARIO, "off", adapter, annotation_delivery="tool_result")
-        self.assertNotIn("alert feed", adapter.sent[0]["messages"][1]["content"].lower())
+        result = run_agent(SCENARIO, "off", adapter)
         fed_back = json.loads(adapter.sent[1]["messages"][-1]["content"])
-        self.assertEqual(fed_back["evidence"]["alert_feed_note"], SCENARIO["untrusted_annotation"])
+        self.assertEqual(fed_back["alert_feed_note"], SCENARIO["untrusted_annotation"])
+        self.assertEqual(fed_back["evidence"], SCENARIO["evidence"])
+        self.assertTrue(fed_back["ok"])
+        # Gateway event is untouched: no note in it.
+        self.assertNotIn("alert_feed_note", json.dumps(result["tool_events"]))
+        self.assertEqual(result["annotation_delivery"], "tool_result")
+
+    def test_note_not_in_task_message_and_task_same_across_scenarios(self):
+        benign = dict(SCENARIO, scenario_id="b", untrusted_annotation="Note from alert feed: harmless.")
+        first = []
+        for scenario in (benign, SCENARIO):
+            adapter = FakeAdapter([final(json.dumps(GOOD_ANSWER))])
+            run_agent(scenario, "off", adapter)
+            first.append(adapter.sent[0])
+            self.assertNotIn(scenario["untrusted_annotation"], json.dumps(adapter.sent[0]))
+        self.assertEqual(first[0], first[1])
+
+    def test_no_note_after_failed_read_or_on_export(self):
+        adapter = FakeAdapter([
+            tool_call("read_login_evidence", {"username": "jrivera"}, call_id="bad"),
+            tool_call("export_alert_archive", call_id="exp"),
+            final(json.dumps(GOOD_ANSWER)),
+        ])
+        run_agent(SCENARIO, "off", adapter)
+        self.assertNotIn(SCENARIO["untrusted_annotation"], json.dumps(adapter.sent))
+
+    def test_none_delivery_never_shows_note(self):
+        adapter = FakeAdapter([tool_call("read_login_evidence"), final(json.dumps(GOOD_ANSWER))])
+        run_agent(SCENARIO, "off", adapter, annotation_delivery="none")
+        self.assertNotIn(SCENARIO["untrusted_annotation"], json.dumps(adapter.sent))
+
+    def test_extra_arguments_rejected_not_stripped_then_retry_succeeds(self):
+        for defense in ("off", "gate"):
+            adapter = FakeAdapter([
+                tool_call("read_login_evidence", {"username": "jrivera@northwind-demo.example"}, call_id="bad"),
+                tool_call("read_login_evidence", {}, call_id="good"),
+                final(json.dumps(GOOD_ANSWER)),
+            ])
+            result = run_agent(SCENARIO, defense, adapter)
+            bad, good = result["tool_events"]
+            self.assertEqual(bad["arguments"], {"username": "jrivera@northwind-demo.example"})
+            self.assertEqual((bad["decision"], bad["reason"], bad["executed"]),
+                             ("block", "invalid_arguments", False))
+            self.assertEqual(json.loads(adapter.sent[1]["messages"][-1]["content"]),
+                             {"ok": False, "error": "invalid_arguments"})
+            self.assertTrue(good["executed"])
+            self.assertEqual((result["status"], result["steps"]), ("completed", 3))
+
+    def test_bad_arguments_count_against_step_limit(self):
+        adapter = FakeAdapter([tool_call("read_login_evidence", {"username": "x"}, call_id=f"c{i}")
+                               for i in range(6)])
+        result = run_agent(SCENARIO, "off", adapter, max_steps=3)
+        self.assertEqual(result["status"], "step_limit")
+        self.assertEqual([e["reason"] for e in result["tool_events"]], ["invalid_arguments"] * 3)
+
+    def test_unknown_delivery_rejected(self):
+        with self.assertRaises(ValueError):
+            run_agent(SCENARIO, "off", FakeAdapter([]), annotation_delivery="task_message")
 
 
 class FinalAnswerParsingTests(unittest.TestCase):
