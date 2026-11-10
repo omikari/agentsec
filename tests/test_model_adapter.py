@@ -41,6 +41,9 @@ class ConfigTests(unittest.TestCase):
         })
         self.assertEqual((cfg.model, cfg.base_url, cfg.timeout_s, cfg.seed, cfg.temperature),
                          ("llama3.1:8b", "http://x/v1", 30.0, 7, 0.0))
+        self.assertEqual(cfg.max_tokens, 1024)
+        self.assertIsNone(ModelConfig.from_env(env={"AGENTSEC_MODEL": "m",
+                                                    "AGENTSEC_MODEL_MAX_TOKENS": "none"}).max_tokens)
 
     def test_missing_model_is_config_error(self):
         with self.assertRaises(ModelConfigError):
@@ -85,7 +88,8 @@ class ChatTests(unittest.TestCase):
         out = ModelAdapter(CONFIG, transport).chat([{"role": "user", "content": "hi"}], tool_definitions())
         sent = transport.calls[0]
         self.assertEqual(sent["url"], "http://model.test/v1/chat/completions")
-        self.assertEqual((sent["body"]["temperature"], sent["body"]["seed"]), (0.0, 0))
+        self.assertEqual((sent["body"]["temperature"], sent["body"]["seed"], sent["body"]["max_tokens"]),
+                         (0.0, 0, 1024))
         self.assertEqual(len(sent["body"]["tools"]), 2)
         self.assertNotIn("Authorization", sent["headers"])
         self.assertIsNone(out["content"])

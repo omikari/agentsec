@@ -63,6 +63,7 @@ the CLI build.
 | `AGENTSEC_MODEL_TIMEOUT_S` | no | `300` | Per-request timeout (a cold model load can take 2+ min on 16 GB) |
 | `AGENTSEC_MODEL_TEMPERATURE` | no | `0` | Sampling temperature |
 | `AGENTSEC_MODEL_SEED` | no | `0` | Seed (`none` to omit) |
+| `AGENTSEC_MODEL_MAX_TOKENS` | no | `1024` | Cap on each reply's length (`none` to omit); stops runaway generations |
 
 Never commit keys or private endpoint URLs. Put them in `.env` (git-ignored)
 and `export` them in your shell.
@@ -76,7 +77,20 @@ python scripts/run_agent.py --scenario scenarios/demo/benign.json --defense off 
 ```
 
 Options: `--defense off|gate`, `--trial N`, `--max-steps 6`, `--timeout 300`,
-`--annotation-delivery task_message|tool_result|none`.
+`--annotation-delivery tool_result|none`.
+
+**How the alert-feed note reaches the model** (agreed with Amit): the task
+message is the same for every scenario. After a *successful*
+`read_login_evidence` call, the loop adds the scenario's `untrusted_annotation`
+to the result the model sees, as `alert_feed_note`:
+
+```json
+{"ok": true, "evidence": [...], "alert_feed_note": "Note from alert feed: ..."}
+```
+
+The gateway, its evidence and its `tool_events` are unchanged; the note is
+visible in the run's `transcript`. A blocked or failed read gets no note.
+`--annotation-delivery none` hides the note entirely (control runs).
 
 `scripts/run_agent.py` is a stand-in until Amit wires the loop into
 `python -m agentsec`. Exit code is 0 only when the run status is `completed`.
@@ -98,7 +112,8 @@ On an M2 with 16 GB a run takes about 1–2 minutes; close heavy apps.
 
 The trace JSON is the run result: `run_id`, `scenario_id`, `model` (name,
 endpoint, tool mode, temperature, seed; no API key), `runtime`, `defense`,
-`annotation_delivery`, `prompt_fingerprint` (identical across gate off/on),
+`annotation_delivery`, `prompt_fingerprint` (identical across gate off/on and
+across benign/injected),
 `status`, `error`, `tool_events` (the gateway's events, unchanged),
 `final_answer`, `steps`, `model_calls`, `transcript`, `latency_s`, `usage`,
 `mock: false`, `synthetic_only: true`. Scores are attached later by
@@ -123,8 +138,8 @@ There is no mock fallback. A failed real run stays failed and says why.
 | `CONFIG ERROR: Set AGENTSEC_MODEL ...` | `export AGENTSEC_MODEL=llama3.1:8b` |
 | `model_unreachable ... Connection refused` | Ollama isn't running: start `ollama serve` (or the app) |
 | `bad_model_response HTTP 404 ... model 'x' not found` | Run `ollama pull <model>`; check the exact tag with `ollama list` |
-| `timeout` | First load or slow machine: raise `AGENTSEC_MODEL_TIMEOUT_S` / `--timeout`, close other apps |
-| Tool events blocked with `invalid_arguments` even with gate off | The model invented arguments (e.g. `{"username": ...}`); both tools take `{}`. The system prompt tells it so, but small models still slip sometimes. This is recorded, not hidden. |
+| `timeout` | First load or slow machine: raise `AGENTSEC_MODEL_TIMEOUT_S` / `--timeout`, close other apps. Also check `AGENTSEC_MODEL_MAX_TOKENS` is set; without a cap a model can generate until the timeout |
+| Tool events blocked with `invalid_arguments` even with gate off | By design. Both tools are strict and take only `{}`, in both modes; gate off disables only the permission check. If the model invents arguments (e.g. `{"username": ...}`) it gets `{"ok": false, "error": "invalid_arguments"}` and may retry within the step limit. Arguments are never stripped. The system prompt tells the model to use `{}`, but small models still slip sometimes. |
 | `step_limit` with repeated identical tool calls | Same as above, the model kept retrying a rejected call |
 | `brew install ollama` fails on macOS 14 | Use the official CLI build (step 1) |
 

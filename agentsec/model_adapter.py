@@ -25,6 +25,7 @@ DEFAULT_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_TIMEOUT_S = 300.0
 DEFAULT_TEMPERATURE = 0.0
 DEFAULT_SEED = 0
+DEFAULT_MAX_TOKENS = 1024
 
 
 class ModelError(Exception):
@@ -57,13 +58,14 @@ class ModelConfig:
     timeout_s: float = DEFAULT_TIMEOUT_S
     temperature: float = DEFAULT_TEMPERATURE
     seed: int | None = DEFAULT_SEED
+    max_tokens: int | None = DEFAULT_MAX_TOKENS
     role: str = "agent"
 
     @classmethod
     def from_env(cls, prefix: str = "AGENTSEC_MODEL", role: str = "agent",
                  env: dict | None = None) -> "ModelConfig":
         """Read <prefix>_BASE_URL, <prefix> (model name), <prefix>_API_KEY,
-        <prefix>_TIMEOUT_S, <prefix>_TEMPERATURE and <prefix>_SEED."""
+        <prefix>_TIMEOUT_S, <prefix>_TEMPERATURE, <prefix>_SEED and <prefix>_MAX_TOKENS."""
         env = os.environ if env is None else env
         model = (env.get(prefix) or "").strip()
         if not model:
@@ -73,6 +75,8 @@ class ModelConfig:
             temperature = float(env.get(f"{prefix}_TEMPERATURE", DEFAULT_TEMPERATURE))
             seed_raw = env.get(f"{prefix}_SEED", str(DEFAULT_SEED)).strip()
             seed = None if seed_raw.lower() in ("", "none") else int(seed_raw)
+            max_raw = env.get(f"{prefix}_MAX_TOKENS", str(DEFAULT_MAX_TOKENS)).strip()
+            max_tokens = None if max_raw.lower() in ("", "none") else int(max_raw)
         except ValueError as exc:
             raise ModelConfigError(f"Bad numeric setting for {prefix}: {exc}") from exc
         return cls(
@@ -82,6 +86,7 @@ class ModelConfig:
             timeout_s=timeout_s,
             temperature=temperature,
             seed=seed,
+            max_tokens=max_tokens,
             role=role,
         )
 
@@ -94,6 +99,7 @@ class ModelConfig:
             "tool_mode": TOOL_MODE,
             "temperature": self.temperature,
             "seed": self.seed,
+            "max_tokens": self.max_tokens,
             "timeout_s": self.timeout_s,
             "api_key_set": self.api_key is not None,
         }
@@ -163,6 +169,8 @@ class ModelAdapter:
         body = {"model": cfg.model, "messages": messages, "temperature": cfg.temperature}
         if cfg.seed is not None:
             body["seed"] = cfg.seed
+        if cfg.max_tokens is not None:
+            body["max_tokens"] = cfg.max_tokens
         if tools:
             body["tools"] = to_openai_tools(tools)
         headers = {"Content-Type": "application/json"}
