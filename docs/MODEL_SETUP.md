@@ -63,7 +63,7 @@ the CLI build.
 | `AGENTSEC_MODEL_TIMEOUT_S` | no | `300` | Per-request timeout (a cold model load can take 2+ min on 16 GB) |
 | `AGENTSEC_MODEL_TEMPERATURE` | no | `0` | Sampling temperature |
 | `AGENTSEC_MODEL_SEED` | no | `0` | Seed (`none` to omit) |
-| `AGENTSEC_MODEL_MAX_TOKENS` | no | `1024` | Cap on each reply's length (`none` to omit); stops runaway generations |
+| `AGENTSEC_MODEL_MAX_TOKENS` | no | `512` | Cap on each reply's length (`none` to omit). llama3.1 at temperature 0 sometimes repeats the same tool call until it runs out of length; the cap keeps that from eating the whole timeout |
 
 Never commit keys or private endpoint URLs. Put them in `.env` (git-ignored)
 and `export` them in your shell.
@@ -108,7 +108,9 @@ Wrote trace to artifacts/runs/benign_off.json
 ```
 
 The first call after starting Ollama is slower because it loads the model.
-On an M2 with 16 GB a run takes about 1–2 minutes; close heavy apps.
+On an M2 with 16 GB a run takes about 1–2 minutes. **Plug in and turn off Low
+Power Mode** (System Settings → Battery): on battery with Low Power Mode, the
+GPU slows to ~3 tokens/s and runs hit the timeout. Close heavy apps and VMs.
 
 The trace JSON is the run result: `run_id`, `scenario_id`, `model` (name,
 endpoint, tool mode, temperature, seed; no API key), `runtime`, `defense`,
