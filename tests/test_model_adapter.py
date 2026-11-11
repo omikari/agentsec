@@ -108,6 +108,15 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(out["tool_calls"][0]["arguments"], "{oops")
         self.assertTrue(out["tool_calls"][0]["id"].startswith("call_"))
 
+    def test_reasoning_effort_sent_only_when_set(self):
+        transport = RecordingTransport(completion({"role": "assistant", "content": "x"}))
+        ModelAdapter(CONFIG, transport).chat([])
+        self.assertNotIn("reasoning_effort", transport.calls[0]["body"])
+        cfg = ModelConfig.from_env(env={"AGENTSEC_MODEL": "qwen3:8b", "AGENTSEC_MODEL_REASONING_EFFORT": "none"})
+        ModelAdapter(cfg, transport).chat([])
+        self.assertEqual(transport.calls[1]["body"]["reasoning_effort"], "none")
+        self.assertEqual(cfg.describe()["reasoning_effort"], "none")
+
     def test_api_key_sent_as_bearer(self):
         transport = RecordingTransport(completion({"role": "assistant", "content": "x"}))
         ModelAdapter(ModelConfig(model="m", api_key="k"), transport).chat([])

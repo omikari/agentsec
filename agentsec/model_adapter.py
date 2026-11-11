@@ -59,13 +59,15 @@ class ModelConfig:
     temperature: float = DEFAULT_TEMPERATURE
     seed: int | None = DEFAULT_SEED
     max_tokens: int | None = DEFAULT_MAX_TOKENS
+    # e.g. "none" to turn off Qwen3-style thinking; None = endpoint default (not sent).
+    reasoning_effort: str | None = None
     role: str = "agent"
 
     @classmethod
     def from_env(cls, prefix: str = "AGENTSEC_MODEL", role: str = "agent",
                  env: dict | None = None) -> "ModelConfig":
         """Read <prefix>_BASE_URL, <prefix> (model name), <prefix>_API_KEY,
-        <prefix>_TIMEOUT_S, <prefix>_TEMPERATURE, <prefix>_SEED and <prefix>_MAX_TOKENS."""
+        <prefix>_TIMEOUT_S, <prefix>_TEMPERATURE, <prefix>_SEED, <prefix>_MAX_TOKENS and <prefix>_REASONING_EFFORT."""
         env = os.environ if env is None else env
         model = (env.get(prefix) or "").strip()
         if not model:
@@ -87,6 +89,7 @@ class ModelConfig:
             temperature=temperature,
             seed=seed,
             max_tokens=max_tokens,
+            reasoning_effort=(env.get(f"{prefix}_REASONING_EFFORT") or "").strip() or None,
             role=role,
         )
 
@@ -100,6 +103,7 @@ class ModelConfig:
             "temperature": self.temperature,
             "seed": self.seed,
             "max_tokens": self.max_tokens,
+            "reasoning_effort": self.reasoning_effort,
             "timeout_s": self.timeout_s,
             "api_key_set": self.api_key is not None,
         }
@@ -171,6 +175,8 @@ class ModelAdapter:
             body["seed"] = cfg.seed
         if cfg.max_tokens is not None:
             body["max_tokens"] = cfg.max_tokens
+        if cfg.reasoning_effort is not None:
+            body["reasoning_effort"] = cfg.reasoning_effort
         if tools:
             body["tools"] = to_openai_tools(tools)
         headers = {"Content-Type": "application/json"}
