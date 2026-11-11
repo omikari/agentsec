@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AgentSec — Experiment workspace</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><a class="brand" href="/">agentsec<span class="brand-dot">®</span></a><span class="header-note">A workspace for agent security research</span><span class="local"><i></i> LOCAL WORKSPACE</span></header>
+<main>
+<section class="intro"><div><p class="eyebrow">GROUP 39 / VALIX.AI</p><h1>Test the boundary.<br><em>Understand the behavior.</em></h1></div><p class="intro-note">Follow an agent from instruction to action.<br>Compare defenses. Inspect the evidence.</p></section>
+<nav aria-label="Workspace"><button class="nav active" data-view="experiment">01 &nbsp; Experiment</button><button class="nav" data-view="history">02 &nbsp; Run archive <span id="count">0</span></button><span class="nav-tail">SYNTHETIC ENVIRONMENTS ONLY</span></nav>
+<section id="experiment" class="workspace">
+<aside class="config"><div class="section-heading"><span class="eyebrow">CONFIGURATION</span><span>↙</span></div><h2>A controlled<br>starting point.</h2><p class="muted">Select your setup. Keep the task consistent.<br>Change the defense.</p>
+<form id="run-form">
+<label for="mode"><span>01</span> Execution mode</label><select id="mode"><option value="mock">Mock · infrastructure test</option><option value="real">Real model · configured endpoint</option></select>
+<div class="model-line"><span class="small">MODEL</span><strong id="model-name">mock-marker-v0</strong></div>
+<p class="hint" id="mode-note">Deterministic proposals. These results do not measure LLM vulnerability.</p>
+<label for="scenario"><span>02</span> Scenario</label><select id="scenario"></select><p class="hint" id="task"></p>
+<label><span>03</span> Defense setting</label><fieldset class="segmented"><legend class="sr-only">Defense setting</legend><label><input type="radio" name="defense" value="off"><span>Gate off</span></label><label><input type="radio" name="defense" value="gate"><span>Gate on</span></label><label><input type="radio" name="defense" value="compare" checked><span>Compare both</span></label></fieldset>
+<div class="runtime"><span class="small">AGENT RUNTIME</span><span id="runtime">soc-single-agent-v0</span></div>
+<button class="run" id="run-button" type="submit">Run experiment <span>↗</span></button><p id="notice" class="notice" role="status" aria-live="polite"></p>
+</form></aside>
+<section class="results"><div class="section-heading"><span class="eyebrow">OBSERVATION</span><span id="run-label" class="small">READY WHEN YOU ARE</span></div>
+<div id="empty" class="empty"><div class="boundary" aria-hidden="true"><span></span><b>↗</b><span></span></div><h2>Every action<br>leaves evidence.</h2><p class="muted">Run an experiment to compare the gate's decisions,<br>inspect tool calls, and review task outcomes.</p><div class="empty-foot">PROPOSAL <span>→</span> POLICY <span>→</span> EFFECT</div></div>
+<div id="result-body" hidden><div class="result-title"><div><h2 id="result-name"></h2><p id="result-meta" class="muted"></p></div><button class="text-button" id="download">Export JSON ↗</button></div>
+<div id="summary" class="summary"></div>
+<div class="detail-heading"><h3>Action trace</h3><span class="small">ATTEMPT ≠ EXECUTION</span></div><div id="trace"></div>
+<div id="answers"></div><details><summary>Inspect full run record</summary><pre id="raw"></pre></details><p class="saved" id="saved"></p></div>
+</section></section>
+<section id="history" class="history" hidden><div class="result-title"><div><p class="eyebrow">PERSISTENT LOCAL RECORDS</p><h2>Your experiment archive.</h2></div><button class="text-button" id="refresh">Refresh ↻</button></div><div id="history-list"></div></section>
+<footer><span>AgentSec / GMU CYSE 492–493</span><span>Observe the attempt. Verify the effect.</span><span>RESEARCH PROTOTYPE · 2026</span></footer>
+</main></body></html>
