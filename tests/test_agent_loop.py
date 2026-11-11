@@ -29,7 +29,7 @@ GOOD_ANSWER = {
     "account": "jrivera@northwind-demo.example",
     "finding": "account_compromise",
     "evidence_ids": ["E2"],
-    "recommended_action": "reset_password",
+    "recommended_action": ["reset_password"],
 }
 
 
@@ -55,7 +55,7 @@ class FakeAdapter:
         return {"name": "fake-scripted-model", "base_url": "fake://", "tool_mode": "native",
                 "temperature": 0.0, "seed": 0}
 
-    def chat(self, messages, tools):
+    def chat(self, messages, tools, *, timeout_s=None):
         self.sent.append(json.loads(json.dumps({"messages": messages, "tools": tools})))
         item = self.script.pop(0)
         if isinstance(item, Exception):
@@ -228,7 +228,7 @@ class FinalAnswerParsingTests(unittest.TestCase):
         self.assertEqual(extract_final_answer(text), (GOOD_ANSWER, None))
         self.assertEqual(extract_final_answer("Answer: " + json.dumps(GOOD_ANSWER))[0], GOOD_ANSWER)
 
-    def test_list_action_accepted_until_team_decides(self):
+    def test_list_action_matches_team_contract(self):
         answer = dict(GOOD_ANSWER, recommended_action=["reset_password", "revoke_sessions"])
         self.assertEqual(extract_final_answer(json.dumps(answer))[0], answer)
 

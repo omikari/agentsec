@@ -122,16 +122,16 @@ def to_openai_tools(definitions: list[dict]) -> list[dict]:
 
 
 def parse_arguments(raw):
-    """Dict passes through; '' or None becomes {}; JSON text is parsed.
+    """Dict passes through; null/blank remain invalid; JSON text is parsed.
     Anything unparseable is passed through unchanged so the gateway can reject
     and log it, rather than the adapter silently dropping it."""
     if isinstance(raw, dict):
         return raw
     if raw is None:
-        return {}
+        return None
     if isinstance(raw, str):
         if not raw.strip():
-            return {}
+            return raw
         try:
             return json.loads(raw)
         except json.JSONDecodeError:
@@ -163,13 +163,17 @@ class ModelAdapter:
     def describe(self) -> dict:
         return self.config.describe()
 
-    def chat(self, messages: list[dict], tools: list[dict] | None = None) -> dict:
+    def chat(self, messages: list[dict], tools: list[dict] | None = None,
+             *, timeout_s: float | None = None) -> dict:
         """tools are provider-neutral definitions (gateway.tool_definitions()).
 
         Returns {"content", "tool_calls": [{"id", "name", "arguments"}],
                  "usage", "latency_s", "raw_finish_reason", "raw_message"}.
         """
         cfg = self.config
+        request_timeout = cfg.timeout_s if timeout_s is None else min(cfg.timeout_s, timeout_s)
+        if request_timeout <= 0:
+            raise ModelTimeout("No time remaining for model request")
         body = {"model": cfg.model, "messages": messages, "temperature": cfg.temperature}
         if cfg.seed is not None:
             body["seed"] = cfg.seed
@@ -186,15 +190,15 @@ class ModelAdapter:
 
         started = time.monotonic()
         try:
-            text = self._transport(url, json.dumps(body).encode("utf8"), headers, cfg.timeout_s)
+            text = self._transport(url, json.dumps(body).encode("utf8"), headers, request_timeout)
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf8", "replace")[:500] if exc.fp else ""
             raise BadModelResponse(f"HTTP {exc.code} from {url}: {detail}") from exc
         except (socket.timeout, TimeoutError) as exc:
-            raise ModelTimeout(f"No response from {url} within {cfg.timeout_s}s") from exc
+            raise ModelTimeout(f"No response from {url} within {request_timeout}s") from exc
         except urllib.error.URLError as exc:
             if isinstance(exc.reason, (socket.timeout, TimeoutError)):
-                raise ModelTimeout(f"No response from {url} within {cfg.timeout_s}s") from exc
+                raise ModelTimeout(f"No response from {url} within {request_timeout}s") from exc
             raise ModelUnreachable(f"Cannot reach model endpoint {url}: {exc.reason}") from exc
         except (ConnectionError, OSError) as exc:
             raise ModelUnreachable(f"Cannot reach model endpoint {url}: {exc}") from exc

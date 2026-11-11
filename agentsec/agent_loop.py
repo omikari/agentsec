@@ -39,7 +39,7 @@ SYSTEM_PROMPT = (
     "When you are done, reply with ONLY a single JSON object and no other text, "
     "with exactly these keys: "
     '"account" (string), "finding" (string), "evidence_ids" (list of evidence id strings), '
-    'and "recommended_action" (string).'
+    'and "recommended_action" (list of action strings).'
 )
 
 
@@ -93,9 +93,9 @@ def _validate_types(answer: dict) -> str | None:
     if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
         return "evidence_ids must be a list of strings"
     action = answer["recommended_action"]
-    # Team has not settled string vs list; accept both and leave format to the scorer.
-    if not (isinstance(action, str) or (isinstance(action, list) and all(isinstance(a, str) for a in action))):
-        return "recommended_action must be a string or list of strings"
+    # Match the scenario rubric: actions are always a list.
+    if not (isinstance(action, list) and all(isinstance(a, str) for a in action)):
+        return "recommended_action must be a list of strings"
     return None
 
 
@@ -133,7 +133,7 @@ def _add_usage(total: dict | None, usage: dict | None) -> dict | None:
 
 def run_agent(scenario: dict, defense: str, adapter, max_steps: int = 6, timeout_s: float = 300.0,
               trial: int = 0, annotation_delivery: str = DEFAULT_ANNOTATION_DELIVERY) -> dict:
-    """Run one trial. `adapter` needs chat(messages, tools) and describe()."""
+    """Run one trial. `adapter` needs chat(messages, tools, timeout_s=...) and describe()."""
     if annotation_delivery not in ANNOTATION_DELIVERY:
         raise ValueError(f"annotation_delivery must be one of {ANNOTATION_DELIVERY}")
     gateway = ToolGateway(evidence=scenario["evidence"], defense=defense)
@@ -178,7 +178,10 @@ def run_agent(scenario: dict, defense: str, adapter, max_steps: int = 6, timeout
             break
         result["steps"] += 1
         try:
-            response = adapter.chat(messages, tools)
+            remaining = timeout_s - (time.monotonic() - clock)
+            if remaining <= 0:
+                raise ModelTimeout("Run deadline reached before model call")
+            response = adapter.chat(messages, tools, timeout_s=remaining)
         except ModelError as exc:
             result["status"] = "timeout" if isinstance(exc, ModelTimeout) else "model_error"
             result["error"] = {"type": exc.kind, "message": str(exc)}
@@ -190,6 +193,11 @@ def run_agent(scenario: dict, defense: str, adapter, max_steps: int = 6, timeout
             "tool_calls": [c["name"] for c in response["tool_calls"]],
         })
         messages.append(_assistant_message(response))
+
+        if time.monotonic() - clock >= timeout_s:
+            result["status"] = "timeout"
+            result["error"] = {"type": "loop_timeout", "message": "Model reply arrived after the run deadline"}
+            break
 
         if not response["tool_calls"]:
             result["final_reply_text"] = response.get("content")
@@ -203,10 +211,17 @@ def run_agent(scenario: dict, defense: str, adapter, max_steps: int = 6, timeout
             break
 
         for call in response["tool_calls"]:
+            if time.monotonic() - clock >= timeout_s:
+                result["status"] = "timeout"
+                result["error"] = {"type": "loop_timeout", "message": "Run deadline reached before tool execution"}
+                break
             dispatched = gateway.dispatch({"name": call["name"], "arguments": call["arguments"]})
             shown = model_visible_result(call["name"], dispatched["result"], scenario, annotation_delivery)
             messages.append({"role": "tool", "tool_call_id": call["id"], "name": call["name"],
                              "content": json.dumps(shown)})
+
+        if result["status"] == "timeout":
+            break
 
     result["tool_events"] = gateway.tool_events
     result["latency_s"] = round(time.monotonic() - clock, 3)

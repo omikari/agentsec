@@ -71,8 +71,8 @@ class ConversionTests(unittest.TestCase):
                          {"read_login_evidence", "export_alert_archive"})
 
     def test_parse_arguments(self):
-        self.assertEqual(parse_arguments(""), {})
-        self.assertEqual(parse_arguments(None), {})
+        self.assertEqual(parse_arguments(""), "")
+        self.assertIsNone(parse_arguments(None))
         self.assertEqual(parse_arguments({"a": 1}), {"a": 1})
         self.assertEqual(parse_arguments('{"a": 1}'), {"a": 1})
         self.assertEqual(parse_arguments("{not json"), "{not json")
