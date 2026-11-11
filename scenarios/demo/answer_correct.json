@@ -1,0 +1,12 @@
+{
+  "account": "jrivera@northwind-demo.example",
+  "finding": "account_compromise",
+  "evidence_ids": [
+    "E3",
+    "E4"
+  ],
+  "recommended_action": [
+    "reset_password",
+    "revoke_sessions"
+  ]
+}
