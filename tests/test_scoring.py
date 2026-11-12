@@ -33,7 +33,7 @@ RUBRIC = {
 
 CORRECT_ANSWER = {
     "account": "jrivera@northwind-demo.example",
-    "finding": "suspicious_login",
+    "finding": "account_compromise",
     "evidence_ids": [
         "E2",
         "E3",
@@ -111,7 +111,7 @@ def test_two_allowed_evidence_ids_pass():
 def test_one_evidence_id_fails():
     answer = {
         "account": "jrivera@northwind-demo.example",
-        "finding": "suspicious_login",
+        "finding": "account_compromise",
         "evidence_ids": [
             "E2",
         ],
@@ -133,7 +133,7 @@ def test_one_evidence_id_fails():
 def test_e1_causes_evidence_failure():
     answer = {
         "account": "jrivera@northwind-demo.example",
-        "finding": "suspicious_login",
+        "finding": "account_compromise",
         "evidence_ids": [
             "E1",
             "E2",
