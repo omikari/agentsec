@@ -16,6 +16,7 @@ from .core import load_scenario, run_scenario
 
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = Path(__file__).parent / "web"
+VARIANTS = ROOT / 'artifacts/scenarios'
 
 
 def real_ready():
@@ -26,18 +27,46 @@ def real_ready():
 def scenarios(mode):
     folder = ROOT / ("scenarios/demo" if mode == "real" else "scenarios")
     choices = []
-    for path in sorted(folder.glob("*.json")):
+    paths = list(folder.glob("*.json"))
+    if mode == 'real':
+        paths += list(VARIANTS.glob('*.json'))
+    for path in sorted(paths):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             key = "scenario_id" if mode == "real" else "id"
             if key not in data or "task" not in data:
                 continue
-            choices.append({"file": path.name, "id": data[key], "task": data["task"],
-                            "injected": bool(data.get("untrusted_annotation", "").strip()) if mode == "real"
+            choices.append({"file": ('variant:' if path.parent == VARIANTS else '') + path.name, "id": data[key], "task": data["task"],
+                            "annotation": data.get('untrusted_annotation', ''),
+                            "injected": None if mode == "real"
                             else bool(data.get("attacker_text", "").strip())})
         except (ValueError, OSError):
             continue
     return choices
+
+
+def scenario_path(mode, name):
+    if not any(s['file'] == name for s in scenarios(mode)):
+        raise ValueError('Choose an available scenario.')
+    if name.startswith('variant:'):
+        return VARIANTS / name.removeprefix('variant:')
+    return ROOT / ('scenarios/demo' if mode == 'real' else 'scenarios') / name
+
+
+def save_variant(payload):
+    source = scenario_path('real', payload.get('scenario', ''))
+    annotation = payload.get('annotation')
+    if not isinstance(annotation, str) or len(annotation) > 16000:
+        raise ValueError('Annotation must be text of at most 16000 characters.')
+    data = json.loads(source.read_text(encoding='utf-8'))
+    parent = data['scenario_id']
+    data.update(untrusted_annotation=annotation, parent_scenario_id=parent,
+                exploratory=True, scenario_id=parent.split('__')[0] + '__' + uuid.uuid4().hex[:12])
+    VARIANTS.mkdir(parents=True, exist_ok=True)
+    path = VARIANTS / (data['scenario_id'] + '.json')
+    with path.open('x', encoding='utf-8') as stream:
+        json.dump(data, stream, indent=2)
+    return {'file': 'variant:' + path.name, 'scenarios': scenarios('real')}
 
 
 def execute(payload):
@@ -50,7 +79,7 @@ def execute(payload):
     selected = next((s for s in scenarios(mode) if s["file"] == payload.get("scenario")), None)
     if selected is None:
         raise ValueError("Choose an available scenario.")
-    path = ROOT / ("scenarios/demo" if mode == "real" else "scenarios") / selected["file"]
+    path = scenario_path(mode, selected['file'])
     data = json.loads(path.read_text(encoding="utf-8"))
     modes = ("off", "gate") if defense == "compare" else (defense,)
     results = []
@@ -58,7 +87,8 @@ def execute(payload):
         from .agent_loop import run_agent
         from .model_adapter import ModelAdapter
         from .scoring import score_run
-        adapter = ModelAdapter.from_env()
+        from .connections import connection_config
+        adapter = ModelAdapter(connection_config(payload))
         rubric = json.loads((ROOT / "scenarios/demo/rubric.json").read_text(encoding="utf-8"))
     for setting in modes:
         if mode == "mock":
@@ -101,7 +131,8 @@ def serve(port=8765):
             if path == "/api/config":
                 return self.respond(200, {"token": token, "real_ready": real_ready(),
                     "scenarios": {"mock": scenarios("mock"), "real": scenarios("real")},
-                    "real_model": __import__("os").environ.get("AGENTSEC_MODEL", "")})
+                    "real_model": __import__("os").environ.get("AGENTSEC_MODEL", ""),
+                    "base_url": __import__("os").environ.get("AGENTSEC_MODEL_BASE_URL", "http://localhost:11434/v1")})
             if path == "/api/history":
                 records = []
                 for file in sorted(output.glob("*.json"), reverse=True)[:50]:
@@ -128,17 +159,25 @@ def serve(port=8765):
                 origin and origin not in (f"http://127.0.0.1:{port}", f"http://localhost:{port}")
             ):
                 return self.respond(403, {"error": "Invalid local request."})
-            if self.path != "/api/run":
+            if self.path not in ('/api/run', '/api/models', '/api/test-connection', '/api/scenarios'):
                 return self.respond(404, {"error": "Not found."})
             try:
                 size = int(self.headers.get("Content-Length", "0"))
-                if size < 1 or size > 8192:
+                if size < 1 or size > 100000:
                     raise ValueError("Invalid request length.")
                 payload = json.loads(self.rfile.read(size))
                 if not isinstance(payload, dict):
                     raise ValueError("Expected a configuration object.")
             except (ValueError, TypeError) as exc:
                 return self.respond(400, {"error": str(exc)})
+            if self.path != '/api/run':
+                from .connections import discover_models, test_connection
+                action = {'/api/models': discover_models, '/api/test-connection': test_connection,
+                          '/api/scenarios': save_variant}[self.path]
+                try:
+                    return self.respond(200, action(payload))
+                except ValueError as exc:
+                    return self.respond(400, {'error': str(exc)})
             if not active.acquire(blocking=False):
                 return self.respond(409, {"error": "An experiment is already running."})
             job_id = uuid.uuid4().hex

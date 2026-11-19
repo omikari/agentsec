@@ -1,5 +1,13 @@
 # AgentSec — Milestone 0: Trace-First Action Boundary Prototype
 
+**Integration branch update (November 12):** The local UI now connects to the
+real-model adapter, gateway, SOC fixtures and scorer. Start with
+`python -m agentsec.ui`, then configure an endpoint/model, test tool calling,
+and save edited annotations as exploratory variants. See
+[UI quickstart](docs/UI_QUICKSTART.md) and
+[verified handoff](docs/CURRENT_STATE_AND_HANDOFF.md) for current validation.
+The original `matrix` and `run` commands described below remain mock-only.
+
 > **Status: infrastructure proof of concept only.** Uses a deterministic, rule-based mock agent — **NOT a real LLM**. The mock intentionally follows a marker in an attacker-controlled alert so we can validate how proposals, permissions, execution decisions, and utility metrics are logged. **No model-vulnerability claims are supported by these results.**
 
 ## Goal / sponsor alignment

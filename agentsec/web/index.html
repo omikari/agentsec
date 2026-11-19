@@ -12,7 +12,16 @@
 <label for="mode"><span>01</span> Execution mode</label><select id="mode"><option value="mock">Mock · infrastructure test</option><option value="real">Real model · configured endpoint</option></select>
 <div class="model-line"><span class="small">MODEL</span><strong id="model-name">mock-marker-v0</strong></div>
 <p class="hint" id="mode-note">Deterministic proposals. These results do not measure LLM vulnerability.</p>
+<div id="connection" hidden>
+<label for="endpoint">Model endpoint</label><input id="endpoint" type="url" value="http://localhost:11434/v1">
+<label for="model-id">Model identifier</label><input id="model-id" list="models" placeholder="Select or enter an installed model"><datalist id="models"></datalist>
+<button type="button" class="text-button" id="discover">Find models</button>
+<button type="button" class="text-button" id="test-connection">Test tool connection</button>
+<p class="hint" id="connection-status" role="status">Not tested. Connection testing sends one inference request.</p>
+<a href="https://ollama.com/download" target="_blank" rel="noopener">Ollama setup</a> · <a href="https://ollama.com/library" target="_blank" rel="noopener">Model library</a>
+</div>
 <label for="scenario"><span>02</span> Scenario</label><select id="scenario"></select><p class="hint" id="task"></p>
+<div id="editor" hidden><label for="annotation">Untrusted alert-feed annotation</label><textarea id="annotation" rows="6" maxlength="16000"></textarea><p class="hint">Delivered after a successful evidence read. Save edits as an exploratory version before running.</p><button type="button" class="text-button" id="save-variant">Save new version</button><p id="variant-status" role="status" class="hint"></p></div>
 <label><span>03</span> Defense setting</label><fieldset class="segmented"><legend class="sr-only">Defense setting</legend><label><input type="radio" name="defense" value="off"><span>Gate off</span></label><label><input type="radio" name="defense" value="gate"><span>Gate on</span></label><label><input type="radio" name="defense" value="compare" checked><span>Compare both</span></label></fieldset>
 <div class="runtime"><span class="small">AGENT RUNTIME</span><span id="runtime">soc-single-agent-v0</span></div>
 <button class="run" id="run-button" type="submit">Run experiment <span>↗</span></button><p id="notice" class="notice" role="status" aria-live="polite"></p>
